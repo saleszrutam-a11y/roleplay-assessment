@@ -74,6 +74,7 @@ router.post('/message', async (req, res) => {
     let audio_base64 = null;
     try {
       audio_base64 = await synthesizeRahulVoice(response);
+      console.log('TTS result:', audio_base64 ? `${audio_base64.length} chars base64` : 'NULL (no audio)');
     } catch (ttsErr) {
       console.error('TTS error (non-fatal):', ttsErr.message);
     }
@@ -81,6 +82,7 @@ router.post('/message', async (req, res) => {
     // 4. Check if session should naturally end
     const should_end = conversation_history.length >= 14;
 
+    console.log('Sending response:', { response: response.substring(0, 50), hasAudio: !!audio_base64, should_end });
     res.json({
       response,
       audio_base64,

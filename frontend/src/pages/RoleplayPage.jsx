@@ -80,33 +80,66 @@ export default function RoleplayPage() {
     });
   }, []);
 
+  // Unlock audio on first user interaction (required for mobile)
+  const audioUnlockedRef = useRef(false);
+  const unlockAudio = useCallback(() => {
+    if (audioUnlockedRef.current) return;
+    audioUnlockedRef.current = true;
+    // Play a silent audio to unlock mobile audio playback
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+      ctx.resume();
+      console.log('Audio unlocked for mobile playback');
+    } catch (e) {
+      console.log('Audio unlock attempt:', e.message);
+    }
+  }, []);
+
   // Play TTS audio
   const playAudio = useCallback((base64, text) => {
+    console.log('playAudio called, hasBase64:', !!base64, 'base64Length:', base64?.length || 0);
     if (base64) {
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: 'audio/mp3' });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
+      try {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
 
-      audioRef.current = audio;
-      setIsSpeaking(true);
+        audioRef.current = audio;
+        setIsSpeaking(true);
 
-      audio.onended = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-      };
-      audio.onerror = () => {
-        setIsSpeaking(false);
-        URL.revokeObjectURL(url);
-        audioRef.current = null;
-        // Fallback to browser TTS
+        audio.onended = () => {
+          console.log('Audio playback ended');
+          setIsSpeaking(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+        };
+        audio.onerror = (e) => {
+          console.error('Audio playback error:', e);
+          setIsSpeaking(false);
+          URL.revokeObjectURL(url);
+          audioRef.current = null;
+          fallbackSpeak(text);
+        };
+        audio.play().then(() => {
+          console.log('Audio playing successfully');
+        }).catch((err) => {
+          console.error('Audio play failed:', err.message);
+          fallbackSpeak(text);
+        });
+      } catch (e) {
+        console.error('Audio decode error:', e.message);
         fallbackSpeak(text);
-      };
-      audio.play().catch(() => fallbackSpeak(text));
+      }
     } else {
+      console.log('No audio base64, using fallback TTS');
       fallbackSpeak(text);
     }
   }, []);
@@ -197,9 +230,10 @@ export default function RoleplayPage() {
 
   const handleMicPress = useCallback(() => {
     if (isSpeaking || isProcessing) return;
+    unlockAudio(); // Unlock mobile audio on first mic press
     finalTextAccumulator.current = '';
     startRecording();
-  }, [isSpeaking, isProcessing, startRecording]);
+  }, [isSpeaking, isProcessing, startRecording, unlockAudio]);
 
   // End session
   const handleEndSession = useCallback(async () => {
