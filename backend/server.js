@@ -41,37 +41,36 @@ wss.on('connection', (ws) => {
   let dgConnection = null;
 
   ws.on('message', (data, isBinary) => {
-    // Text messages are JSON control messages
-    if (!isBinary) {
-      try {
-        const msg = JSON.parse(data.toString());
+    // Try to parse as JSON first (some proxies mark text as binary)
+    const str = data.toString();
+    let parsed = null;
+    if (str.length < 500) {
+      try { parsed = JSON.parse(str); } catch (e) { /* not JSON */ }
+    }
 
-        if (msg.type === 'start_stream') {
-          const sampleRate = msg.sampleRate || 16000;
-          console.log(`Starting Deepgram stream (sample rate: ${sampleRate})`);
-          dgConnection = createDeepgramConnection(sampleRate, (transcript) => {
-            console.log('Deepgram transcript:', JSON.stringify(transcript));
-            if (ws.readyState === ws.OPEN) {
-              ws.send(JSON.stringify(transcript));
-              console.log('Sent transcript to client');
-            }
-          });
-        } else if (msg.type === 'stop_stream') {
-          console.log('Stopping Deepgram stream');
-          if (dgConnection) {
-            dgConnection.close();
-            dgConnection = null;
+    if (parsed && parsed.type) {
+      // Control message
+      if (parsed.type === 'start_stream') {
+        const sampleRate = parsed.sampleRate || 16000;
+        console.log(`Starting Deepgram stream (sample rate: ${sampleRate})`);
+        dgConnection = createDeepgramConnection(sampleRate, (transcript) => {
+          console.log('Deepgram transcript:', JSON.stringify(transcript));
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify(transcript));
+            console.log('Sent transcript to client');
           }
+        });
+      } else if (parsed.type === 'stop_stream') {
+        console.log('Stopping Deepgram stream');
+        if (dgConnection) {
+          dgConnection.close();
+          dgConnection = null;
         }
-      } catch (e) {
-        console.error('Invalid WS message:', e.message);
       }
-    } else {
+    } else if (isBinary || data.length > 500) {
       // Binary data — audio chunks, forward to Deepgram
       if (dgConnection) {
         dgConnection.send(data);
-      } else {
-        console.log('Received audio but no Deepgram connection');
       }
     }
   });
