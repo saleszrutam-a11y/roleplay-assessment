@@ -325,7 +325,7 @@ export default function RoleplayPage() {
           <TranscriptPanel messages={messages} interimText={interimText} />
 
           {/* Controls */}
-          <div className="flex items-center justify-center gap-4 py-4 md:pb-4 pb-24">
+          <div className="flex flex-col items-center gap-3 py-4 md:pb-4 pb-24 select-none">
             {/* Mic button */}
             <button
               onMouseDown={handleMicPress}
@@ -333,44 +333,45 @@ export default function RoleplayPage() {
               onTouchStart={(e) => { e.preventDefault(); handleMicPress(); }}
               onTouchEnd={(e) => { e.preventDefault(); handleMicRelease(); }}
               disabled={micDisabled}
-              className={`w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center
-                transition-all duration-200 shadow-lg active:scale-95
+              className={`w-18 h-18 md:w-22 md:h-22 rounded-full flex items-center justify-center
+                transition-all duration-200 shadow-lg select-none touch-none
                 ${micDisabled
                   ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   : isRecording
-                    ? 'bg-secondary text-white scale-110 shadow-secondary/40'
+                    ? 'bg-secondary text-white scale-110 shadow-secondary/40 shadow-xl'
                     : 'bg-white text-text-secondary hover:bg-gray-50 border-2 border-gray-200'
                 }`}
+              style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', width: isRecording ? '5.5rem' : '4.5rem', height: isRecording ? '5.5rem' : '4.5rem' }}
             >
-              <svg className="w-7 h-7 md:w-8 md:h-8" fill="currentColor" viewBox="0 0 24 24">
+              <svg className="w-8 h-8 md:w-9 md:h-9" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z" />
                 <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
               </svg>
             </button>
 
-            {/* End session button */}
+            {/* Mic hint */}
+            <p className="text-text-secondary text-xs select-none">
+              {isEnding
+                ? 'Generating your assessment scores...'
+                : isProcessing
+                  ? 'Rahul is thinking...'
+                  : isSpeaking
+                    ? 'Rahul is speaking...'
+                    : isRecording
+                      ? 'Listening... release to send'
+                      : 'Hold the mic button to speak'}
+            </p>
+
+            {/* End session button — separated below mic */}
             <button
               onClick={handleEndSession}
               disabled={isEnding}
-              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-3 rounded-full
-                transition-all duration-200 shadow-md text-sm disabled:opacity-60"
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-5 py-2 rounded-full
+                transition-all duration-200 shadow-md text-xs disabled:opacity-60 select-none mt-1"
             >
               {isEnding ? 'Scoring...' : 'Complete & Score'}
             </button>
           </div>
-
-          {/* Mic hint */}
-          <p className="text-center text-text-secondary text-xs -mt-2 pb-2">
-            {isEnding
-              ? 'Generating your assessment scores...'
-              : isProcessing
-                ? 'Rahul is thinking...'
-                : isSpeaking
-                  ? 'Rahul is speaking...'
-                  : isRecording
-                    ? 'Listening... release to send'
-                    : 'Hold the mic button to speak'}
-          </p>
         </div>
 
         {/* Right: Protocol checklist (desktop) */}
