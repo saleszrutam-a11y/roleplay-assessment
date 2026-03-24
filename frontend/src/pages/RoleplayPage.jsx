@@ -80,27 +80,39 @@ export default function RoleplayPage() {
     });
   }, []);
 
-  // Unlock audio on first user interaction (required for mobile)
+  // Persistent audio element for mobile compatibility
+  // Mobile browsers only allow audio.play() on elements that were first played during a user gesture
+  const persistentAudioRef = useRef(null);
   const audioUnlockedRef = useRef(false);
+
   const unlockAudio = useCallback(() => {
     if (audioUnlockedRef.current) return;
     audioUnlockedRef.current = true;
-    // Play a silent audio to unlock mobile audio playback
+
+    // Create a persistent Audio element and "prime" it with silence during user gesture
+    const audio = new Audio();
+    audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAABhkVNKN4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAABhkVNKN4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+    audio.volume = 0.01;
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume = 1;
+      persistentAudioRef.current = audio;
+      console.log('Audio unlocked for mobile playback (persistent element created)');
+    }).catch((err) => {
+      console.log('Audio unlock failed:', err.message);
+      // Still create the element for later attempts
+      persistentAudioRef.current = audio;
+    });
+
+    // Also unlock AudioContext
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const buffer = ctx.createBuffer(1, 1, 22050);
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(ctx.destination);
-      source.start(0);
       ctx.resume();
-      console.log('Audio unlocked for mobile playback');
-    } catch (e) {
-      console.log('Audio unlock attempt:', e.message);
-    }
+    } catch (e) {}
   }, []);
 
-  // Play TTS audio
+  // Play TTS audio using persistent element for mobile compatibility
   const playAudio = useCallback((base64, text) => {
     console.log('playAudio called, hasBase64:', !!base64, 'base64Length:', base64?.length || 0);
     if (base64) {
@@ -110,7 +122,11 @@ export default function RoleplayPage() {
         for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
+
+        // Use the persistent (gesture-unlocked) audio element if available
+        const audio = persistentAudioRef.current || new Audio();
+        audio.src = url;
+        audio.volume = 1;
 
         audioRef.current = audio;
         setIsSpeaking(true);
@@ -132,7 +148,11 @@ export default function RoleplayPage() {
           console.log('Audio playing successfully');
         }).catch((err) => {
           console.error('Audio play failed:', err.message);
-          fallbackSpeak(text);
+          // Try creating a fresh Audio as last resort
+          const freshAudio = new Audio(url);
+          freshAudio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+          freshAudio.onerror = () => { setIsSpeaking(false); URL.revokeObjectURL(url); fallbackSpeak(text); };
+          freshAudio.play().catch(() => fallbackSpeak(text));
         });
       } catch (e) {
         console.error('Audio decode error:', e.message);
